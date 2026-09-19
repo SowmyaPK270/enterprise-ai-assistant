@@ -8,7 +8,6 @@ using EnterpriseAiAssistant.Domain.Chat;
 using OpenAI.Chat;
 
 // Converts messages and calls SDK
-// AzureOpenAIService is the actual bridge between your application-level AI abstraction and the Azure OpenAI SDK.
 namespace EnterpriseAiAssistant.Infrastructure.AI.AzureOpenAI;
 
 public sealed class AzureOpenAIService : IAIClient
@@ -68,62 +67,6 @@ public sealed class AzureOpenAIService : IAIClient
         return new AIResponse(content);
     }
 }
-
-
-
-/*Now it has SDK-compatible messages
-
-Before the conversion:
-
-Your Application/Domain objects
-
-ChatMessage
-ChatMessage
-ChatMessage
-
-After the conversion:
-
-OpenAI SDK objects
-
-SystemChatMessage
-UserChatMessage
-AssistantChatMessage
-
-This is one of the main jobs of this class.*/
-
-
-
-/*
- 
-var completion = await _client.ChatClient
-    .CompleteChatAsync(messages);
-
-
-_client
-   ↓
-AzureOpenAIClient                 ← your wrapper
-   ↓
-ChatClient                        ← OpenAI SDK
-   ↓
-CompleteChatAsync()
-   ↓
-Azure OpenAI*/
-
-
-
-
-/*In one sentence:
-
-AzureOpenAIService takes your application's AIRequest, converts your Domain ChatMessage objects into Azure/OpenAI SDK message objects, calls Azure OpenAI through ChatClient, extracts the generated text, and converts it into your application's AIResponse.*/
-
-
-
-
-
-
-
-
-
 
 
 

@@ -45,13 +45,11 @@ public sealed class AzureOpenAIClient
             new DefaultAzureCredentialOptions
             {
                 TenantId = settings.TenantId,
-                // Optional but recommended: prevents ambient/unexpected
-                // credential sources from silently succeeding with the wrong tenant.
                 ExcludeVisualStudioCredential = false,
                 ExcludeAzureCliCredential = false
             });
 
-        var azureClient = new Azure.AI.OpenAI.AzureOpenAIClient(  //Real SDK client supplied by Microsoft - It knows how to communicate with your Azure OpenAI resource.
+        var azureClient = new Azure.AI.OpenAI.AzureOpenAIClient(  
             new Uri(endpoint),
             credential);
 
@@ -60,34 +58,3 @@ public sealed class AzureOpenAIClient
 
     public ChatClient ChatClient => _chatClient;
 }
-
-
-/* Your application
-      ↓
-Microsoft Azure OpenAI SDK
-      ↓
-Azure OpenAI service
-
- 
- 
- ..
- 
- 
- 
- 
- AzureOpenAIClient                    ← YOUR wrapper
-        │
-        ├── creates
-        │
-        ▼
-Azure.AI.OpenAI.AzureOpenAIClient   ← Microsoft SDK client
-        │
-        ├── GetChatClient(...)
-        │
-        ▼
-OpenAI.Chat.ChatClient               ← SDK client for chat
-        │
-        ├── CompleteChatAsync(...)
-        │
-        ▼
-Azure OpenAI*/
