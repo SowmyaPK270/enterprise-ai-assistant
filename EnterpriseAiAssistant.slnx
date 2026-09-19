@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="EnterpriseAiAssistant.Application/EnterpriseAiAssistant.Application.csproj" />
+  <Project Path="EnterpriseAiAssistant.Domain/EnterpriseAiAssistant.Domain.csproj" />
+  <Project Path="EnterpriseAiAssistant.Infrastructure/EnterpriseAiAssistant.Infrastructure.csproj" />
+  <Project Path="EnterpriseAiAssistant/EnterpriseAiAssistant.Web.csproj" />
+</Solution>

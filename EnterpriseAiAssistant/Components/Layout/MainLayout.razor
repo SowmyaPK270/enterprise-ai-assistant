@@ -1,0 +1,27 @@
+﻿@inherits LayoutComponentBase
+
+<header class="d-flex justify-content-end align-items-center gap-3 p-3 border-bottom">
+    <AuthorizeView>
+        <Authorized>
+            <span>@context.User.Identity?.Name</span>
+            <a class="btn btn-outline-secondary btn-sm" href="/MicrosoftIdentity/Account/SignOut">
+                Sign out
+            </a>
+        </Authorized>
+        <NotAuthorized>
+            <a class="btn btn-primary btn-sm" href="/MicrosoftIdentity/Account/SignIn">
+                Sign in
+            </a>
+        </NotAuthorized>
+    </AuthorizeView>
+</header>
+
+<main class="chat-layout">
+    @Body
+</main>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

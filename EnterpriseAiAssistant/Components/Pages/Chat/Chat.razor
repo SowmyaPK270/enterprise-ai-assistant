@@ -1,0 +1,168 @@
+﻿@page "/chat"
+@attribute [Authorize]
+@using EnterpriseAiAssistant.Domain.Chat
+
+@rendermode InteractiveServer
+
+<PageTitle>AI Assistant</PageTitle>
+
+<div class="chat-page">
+
+    <!-- Sidebar -->
+    <aside class="chat-sidebar">
+
+        <div class="sidebar-header">
+            <div class="brand">
+                <span class="brand-icon">✧</span>
+                <span>AI ASSISTANT</span>
+            </div>
+        </div>
+
+        <button class="new-chat-button"
+                @onclick="StartNewChat">
+
+            <span>+</span>
+            <span>New chat</span>
+
+        </button>
+
+        <div class="chat-history">
+
+            @foreach (var session in ChatSessions)
+            {
+                <button class="history-item"
+                        @onclick="() => SelectSession(session)">
+
+                    <span class="history-title">
+                        @session.Title
+                    </span>
+
+                    <span class="history-date">
+                        @session.CreatedAt.ToString("MMM dd")
+                    </span>
+
+                </button>
+            }
+
+        </div>
+
+    </aside>
+
+
+    <!-- Main Chat Area -->
+    <main class="chat-main">
+
+        @if (!HasMessages)
+        {
+            <!-- Welcome Screen -->
+
+            <section class="welcome-section">
+
+                <div class="welcome-icon">
+                    ✧
+                </div>
+
+                <h1>Ask anything</h1>
+
+                <p>
+                    Your intelligent enterprise AI assistant.
+                    Ask questions, explore information, and get
+                    AI-powered answers.
+                </p>
+
+            </section>
+        }
+        else
+        {
+            <!-- Messages -->
+
+            <section class="messages-container">
+
+                @foreach (var message in CurrentMessages)
+                {
+                    <div class="message-row
+                         @(message.Role == ChatRole.User
+                             ? "user-message"
+                             : "assistant-message")">
+
+                        <div class="message-bubble">
+
+                            <div class="message-role">
+                                @(message.Role == ChatRole.User
+                                    ? "You"
+                                    : "AI Assistant")
+                            </div>
+
+                            <div class="message-content">
+                                @message.Content
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+
+                @if (IsLoading)
+                {
+                    <div class="message-row assistant-message">
+
+                        <div class="message-bubble">
+
+                            <div class="message-role">
+                                AI Assistant
+                            </div>
+
+                            <div class="loading-indicator">
+                                Thinking...
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+
+            </section>
+        }
+
+
+        <!-- Chat Input -->
+
+        <div class="chat-input-wrapper">
+
+            <div class="chat-input-container">
+
+                <textarea class="chat-input"
+                          placeholder="Ask anything about your enterprise data..."
+                          @bind="UserInput"
+                          @bind:event="oninput"
+                          @onkeydown="HandleKeyDown"
+                          disabled="@IsLoading">
+                </textarea>
+
+                <button class="send-button"
+                        @onclick="SendMessageAsync"
+                        disabled="@(!CanSendMessage)">
+
+                    ↑
+
+                </button>
+
+            </div>
+
+            <div class="input-footer">
+
+                <span>
+                    Enterprise AI Assistant
+                </span>
+
+                <span>
+                    Enter to send · Shift+Enter for new line
+                </span>
+
+            </div>
+
+        </div>
+
+    </main>
+
+</div>
