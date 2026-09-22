@@ -81,9 +81,9 @@
                 @foreach (var message in CurrentMessages)
                 {
                     <div class="message-row
-                         @(message.Role == ChatRole.User
-                             ? "user-message"
-                             : "assistant-message")">
+                        @(message.Role == ChatRole.User
+                            ? "user-message"
+                            : "assistant-message")">
 
                         <div class="message-bubble">
 
@@ -112,9 +112,19 @@
                                 AI Assistant
                             </div>
 
-                            <div class="loading-indicator">
-                                Thinking...
-                            </div>
+                            @if (string.IsNullOrEmpty(StreamingReply))
+                            {
+                                <div class="loading-indicator">
+                                    Thinking...
+                                </div>
+                            }
+                            else
+                            {
+                                <!-- Grows token-by-token as the response streams in -->
+                                <div class="message-content">
+                                    @StreamingReply
+                                </div>
+                            }
 
                         </div>
 

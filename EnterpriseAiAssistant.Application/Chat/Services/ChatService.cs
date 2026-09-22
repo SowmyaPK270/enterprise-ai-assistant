@@ -1,28 +1,70 @@
-﻿using EnterpriseAiAssistant.Application.Abstractions.AI;
+﻿using System.Runtime.CompilerServices;
+using System.Text;
+using EnterpriseAiAssistant.Application.Abstractions.AI;
 using EnterpriseAiAssistant.Application.Chat.Interfaces;
 using EnterpriseAiAssistant.Application.Chat.Models;
 using EnterpriseAiAssistant.Domain.Chat;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using EnterpriseAiAssistant.Domain.Users;
 
-//Sits inbetween ChatRequest and AIRequest
-//application can receive a chat request and return a chat response.
-//main application use-case service.
+// Sits inbetween ChatRequest and AIRequest.
+// Main application use-case service: also owns persistence of
+// conversation history to the dedicated Conversation SQL store.
 namespace EnterpriseAiAssistant.Application.Chat.Services;
 
 public sealed class ChatService : IChatService
 {
-    private readonly IAIClient _aiClient;
+    private const string DefaultTitle = "New conversation";
 
-    public ChatService(IAIClient aiClient)
+    private readonly IAIClient _aiClient;
+    private readonly IConversationRepository _repository;
+
+    public ChatService(
+        IAIClient aiClient,
+        IConversationRepository repository)
     {
         _aiClient = aiClient;
+        _repository = repository;
     }
 
-    public async Task<ChatResponse> SendMessageAsync(
-        ChatRequest request,
+    public Task<User> EnsureUserAsync(
+        string externalId,
+        string displayName,
         CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(externalId))
+        {
+            throw new ArgumentException(
+                "External id cannot be empty.",
+                nameof(externalId));
+        }
+
+        return _repository.GetOrCreateUserAsync(
+            externalId,
+            displayName,
+            cancellationToken);
+    }
+
+    public Task<IReadOnlyList<ChatSession>> GetSessionsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.GetSessionsForUserAsync(userId, cancellationToken);
+    }
+
+    public async Task<ChatSession> CreateSessionAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var session = ChatSession.Create(userId);
+
+        await _repository.AddSessionAsync(session, cancellationToken);
+
+        return session;
+    }
+
+    public async IAsyncEnumerable<string> StreamMessageAsync(
+        ChatRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (request is null)
         {
@@ -36,68 +78,68 @@ public sealed class ChatService : IChatService
                 nameof(request));
         }
 
-        var messages = new List<ChatMessage>();
+        var session = await _repository.GetSessionAsync(request.SessionId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"Conversation '{request.SessionId}' was not found.");
 
-        if (request.History is not null)
+        if (session.UserId != request.UserId)
         {
-            messages.AddRange(request.History);
+            throw new InvalidOperationException(
+                "This conversation does not belong to the requesting user.");
         }
 
-        messages.Add(
-            ChatMessage.Create(
-                ChatRole.User,
-                request.Message));
+        // Persist the user's message first so history survives even if
+        // the AI call or the stream is interrupted partway through.
+        var userMessage = ChatMessage.Create(ChatRole.User, request.Message);
 
-        var aiRequest = new AIRequest(messages);
+        session.AddMessage(userMessage);
 
-        var aiResponse = await _aiClient.CompleteAsync(
-            aiRequest,
-            cancellationToken);
+        await _repository.AddMessageAsync(session.Id, userMessage, cancellationToken);
 
-        return new ChatResponse(aiResponse.Content);
+        if (session.Title == DefaultTitle)
+        {
+            var title = request.Message.Length > 30
+                ? request.Message[..30] + "..."
+                : request.Message;
+
+            session.Rename(title);
+
+            await _repository.RenameSessionAsync(session.Id, title, cancellationToken);
+        }
+
+        var aiRequest = new AIRequest(session.Messages.ToList());
+
+        var buffer = new StringBuilder();
+
+        try
+        {
+            await foreach (var chunk in _aiClient.StreamCompleteAsync(aiRequest, cancellationToken))
+            {
+                if (string.IsNullOrEmpty(chunk))
+                    continue;
+
+                buffer.Append(chunk);
+
+                yield return chunk;
+            }
+        }
+        finally
+        {
+            // Persist whatever the model produced, even a partial reply
+            // if the caller cancelled or the connection dropped mid-stream.
+            var fullContent = buffer.ToString();
+
+            if (!string.IsNullOrWhiteSpace(fullContent))
+            {
+                var assistantMessage = ChatMessage.Create(ChatRole.Assistant, fullContent);
+
+                session.AddMessage(assistantMessage);
+
+                await _repository.AddMessageAsync(
+                    session.Id,
+                    assistantMessage,
+                    CancellationToken.None);
+            }
+        }
     }
 }
-
-
-
-/*UI request
-   ↓
-ChatService
-   ↓
-Build AIRequest
-   ↓
-Call IAIClient
-   ↓
-Convert AIResponse to ChatResponse
-   ↓
-Return to UI..
-
-
-
-
-Why is this file not in the Web layer?
-
-Because sending a chat message is an application action
-
-
-
-
-The Web layer should handle:
-
-Button clicks
-
-Text input
-
-Displaying messages
-
-Loading indicators
-
-The Application layer should handle:
-
-Preparing the request
-
-Calling the AI abstraction
-
-Applying business workflow
-
-Returning the result*/

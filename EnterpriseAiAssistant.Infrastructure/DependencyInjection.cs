@@ -1,6 +1,9 @@
 ﻿using EnterpriseAiAssistant.Application.Abstractions.AI;
-using EnterpriseAiAssistant.Application.Chat.Services;
+using EnterpriseAiAssistant.Application.Chat.Interfaces;
 using EnterpriseAiAssistant.Infrastructure.AI.AzureOpenAI;
+using EnterpriseAiAssistant.Infrastructure.Persistence;
+using EnterpriseAiAssistant.Infrastructure.Persistence.Repositories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,6 +24,19 @@ public static class DependencyInjection
         services.AddSingleton<AzureOpenAIClient>();
 
         services.AddScoped<IAIClient, AzureOpenAIService>();
+
+        var conversationConnectionString =
+            configuration.GetConnectionString("ConversationDatabase")
+            ?? throw new InvalidOperationException(
+                "Connection string 'ConversationDatabase' is not configured.");
+
+        services.AddDbContext<ConversationDbContext>(options =>
+            options.UseSqlServer(
+                conversationConnectionString,
+                sql => sql.MigrationsAssembly(
+                    typeof(ConversationDbContext).Assembly.FullName)));
+
+        services.AddScoped<IConversationRepository, ConversationRepository>();
 
         return services;
     }

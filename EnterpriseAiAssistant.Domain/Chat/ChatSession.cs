@@ -6,6 +6,13 @@ public sealed class ChatSession
 
     public Guid Id { get; private set; }
 
+    /// <summary>
+    /// The owning user's Id (EnterpriseAiAssistant.Domain.Users.User.Id).
+    /// Kept as a plain Guid rather than a navigation reference so the
+    /// Chat aggregate does not need to depend on the Users namespace.
+    /// </summary>
+    public Guid UserId { get; private set; }
+
     public string Title { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -22,22 +29,33 @@ public sealed class ChatSession
 
     private ChatSession(
         Guid id,
+        Guid userId,
         string title,
         DateTimeOffset createdAt)
     {
         Id = id;
+        UserId = userId;
         Title = title;
         CreatedAt = createdAt;
         UpdatedAt = createdAt;
     }
 
     public static ChatSession Create(
+        Guid userId,
         string title = "New conversation")
     {
+        if (userId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A conversation must belong to a user.",
+                nameof(userId));
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         return new ChatSession(
             Guid.NewGuid(),
+            userId,
             title,
             now);
     }

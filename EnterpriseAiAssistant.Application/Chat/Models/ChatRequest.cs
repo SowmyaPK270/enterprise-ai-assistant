@@ -1,11 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace EnterpriseAiAssistant.Application.Chat.Models;
 
-//Represents the request coming from the UI.
-//represents what the user is asking the application to do
-namespace EnterpriseAiAssistant.Application.Chat.Models;
-
+/// <summary>
+/// Represents the request coming from the UI. The application layer
+/// reloads the full conversation history from the Conversation store
+/// using SessionId, so the client only needs to send the new message
+/// text (the persisted history is always the source of truth).
+/// </summary>
 public sealed record ChatRequest(
-    string Message,
-    IReadOnlyList<Domain.Chat.ChatMessage> History);
+    Guid SessionId,
+    Guid UserId,
+    string Message);

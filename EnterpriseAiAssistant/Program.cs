@@ -1,23 +1,16 @@
 using EnterpriseAiAssistant.Application;
 using EnterpriseAiAssistant.Infrastructure;
+using EnterpriseAiAssistant.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// --------------------------------------------------
-// Blazor Web App
-// --------------------------------------------------
-
 builder.Services
     .AddRazorComponents()
     .AddInteractiveServerComponents();
-
-// --------------------------------------------------
-// Microsoft Entra ID Authentication
-// --------------------------------------------------
 
 builder.Services
     .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
@@ -29,31 +22,21 @@ builder.Services
     .AddMicrosoftIdentityUI();
 
 builder.Services.AddCascadingAuthenticationState();
-
-// --------------------------------------------------
-// Authorization
-// --------------------------------------------------
-
 builder.Services.AddAuthorization();
 
-// --------------------------------------------------
-// Application Layer
-// --------------------------------------------------
-
 builder.Services.AddApplication();
-
-// --------------------------------------------------
-// Infrastructure Layer
-// --------------------------------------------------
-
 builder.Services.AddInfrastructure(
     builder.Configuration);
 
 var app = builder.Build();
 
-// --------------------------------------------------
-// HTTP Pipeline
-// --------------------------------------------------
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ConversationDbContext>();
+    await db.Database.MigrateAsync();
+}
+
 
 if (!app.Environment.IsDevelopment())
 {

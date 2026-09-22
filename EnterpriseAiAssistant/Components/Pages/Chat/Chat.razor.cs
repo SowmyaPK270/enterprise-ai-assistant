@@ -2,124 +2,179 @@
 using EnterpriseAiAssistant.Application.Chat.Models;
 using EnterpriseAiAssistant.Domain.Chat;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Web;
 
 namespace EnterpriseAiAssistant.Web.Components.Pages.Chat;
 
 public partial class Chat : ComponentBase
 {
+    private const string DefaultTitle = "New conversation";
+
     [Inject]
     protected IChatService ChatService { get; set; } = default!;
+
     [Inject]
     protected ILogger<Chat> Logger { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     protected string UserInput { get; set; } = string.Empty;
 
     protected bool IsLoading { get; set; }
 
+    protected string StreamingReply { get; set; } = string.Empty;
+
     protected List<ChatSession> ChatSessions { get; set; } = [];
 
-    protected ChatSession CurrentSession { get; set; } =
-        ChatSession.Create();
+    protected ChatSession? CurrentSession { get; set; }
 
     protected IReadOnlyCollection<ChatMessage> CurrentMessages =>
-        CurrentSession.Messages;
+        CurrentSession?.Messages ?? Array.Empty<ChatMessage>();
 
     protected bool HasMessages =>
-        CurrentMessages.Count > 0;
+        CurrentMessages.Count > 0 || IsLoading;
 
     protected bool CanSendMessage =>
         !IsLoading &&
-        !string.IsNullOrWhiteSpace(UserInput);
+        !string.IsNullOrWhiteSpace(UserInput) &&
+        CurrentSession is not null;
 
+    private Guid _currentUserId;
+    private CancellationTokenSource? _sendCts;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        ChatSessions.Add(CurrentSession);
+        _currentUserId = await ResolveCurrentUserIdAsync();
+
+        var sessions = await ChatService.GetSessionsAsync(_currentUserId);
+
+        ChatSessions = sessions.ToList();
+
+        CurrentSession = ChatSessions.Count > 0
+            ? ChatSessions[0]
+            : await CreateAndTrackNewSessionAsync();
     }
 
+    private async Task<Guid> ResolveCurrentUserIdAsync()
+    {
+        if (AuthenticationStateTask is null)
+        {
+            throw new InvalidOperationException(
+                "AuthenticationStateTask was not supplied. Make sure " +
+                "AddCascadingAuthenticationState() is registered and this " +
+                "page renders under it.");
+        }
+
+        var authState = await AuthenticationStateTask;
+        var principal = authState.User;
+
+        var externalId =
+            principal.FindFirst("oid")?.Value ??
+            principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
+            principal.Identity?.Name;
+
+        if (string.IsNullOrWhiteSpace(externalId))
+        {
+            throw new InvalidOperationException(
+                "Could not resolve an identity for the signed-in user.");
+        }
+
+        var displayName =
+            principal.FindFirst("name")?.Value ??
+            principal.Identity?.Name ??
+            "User";
+
+        var user = await ChatService.EnsureUserAsync(externalId, displayName);
+
+        return user.Id;
+    }
 
     protected async Task SendMessageAsync()
     {
-        if (!CanSendMessage)
+        if (!CanSendMessage || CurrentSession is null)
+        {
             return;
+        }
 
         var userMessage = UserInput.Trim();
+        var session = CurrentSession;
 
         UserInput = string.Empty;
-
         IsLoading = true;
+        StreamingReply = string.Empty;
+
+        _sendCts = new CancellationTokenSource();
+
+        session.AddMessage(
+            ChatMessage.Create(ChatRole.User, userMessage));
+
+        StateHasChanged();
 
         try
         {
-            // Create the user's domain message.
-            var userChatMessage =
-                ChatMessage.Create(
-                    ChatRole.User,
-                    userMessage);
-
-            // Add the user's message to the session.
-            CurrentSession.AddMessage(userChatMessage);
-
-            // Send the current conversation to the application layer.
             var request = new ChatRequest(
-                userMessage,
-                CurrentSession.Messages.ToList());
+                session.Id,
+                _currentUserId,
+                userMessage);
 
-            var response =
-                await ChatService.SendMessageAsync(request);
+            await foreach (var chunk in ChatService.StreamMessageAsync(
+                request,
+                _sendCts.Token))
+            {
+                StreamingReply += chunk;
+                StateHasChanged();
+            }
 
-            // Add the AI response to the session.
-            var assistantChatMessage =
-                ChatMessage.Create(
-                    ChatRole.Assistant,
-                    response.Message);
+            if (StreamingReply.Length > 0)
+            {
+                session.AddMessage(
+                    ChatMessage.Create(ChatRole.Assistant, StreamingReply));
+            }
 
-            CurrentSession.AddMessage(assistantChatMessage);
-
-            // Create the session title from the first user message.
-            if (CurrentSession.Title == "New conversation")
+            if (session.Title == DefaultTitle)
             {
                 var title = userMessage.Length > 30
                     ? userMessage[..30] + "..."
                     : userMessage;
 
-                CurrentSession.Rename(title);
+                session.Rename(title);
             }
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Chat request failed.");
 
-            CurrentSession.AddMessage(
+            session.AddMessage(
                 ChatMessage.Create(
                     ChatRole.Assistant,
                     $"Error: {ex.Message}"));
         }
         finally
         {
+            StreamingReply = string.Empty;
             IsLoading = false;
+            _sendCts.Dispose();
+            _sendCts = null;
         }
     }
 
-
-    protected void StartNewChat()
+    protected async Task StartNewChat()
     {
-        CurrentSession = ChatSession.Create();
-
-        ChatSessions.Insert(0, CurrentSession);
-
+        CurrentSession = await CreateAndTrackNewSessionAsync();
         UserInput = string.Empty;
     }
-
 
     protected void SelectSession(ChatSession session)
     {
         CurrentSession = session;
-
         UserInput = string.Empty;
     }
-
 
     protected async Task HandleKeyDown(
         KeyboardEventArgs e)
@@ -128,5 +183,14 @@ public partial class Chat : ComponentBase
         {
             await SendMessageAsync();
         }
+    }
+
+    private async Task<ChatSession> CreateAndTrackNewSessionAsync()
+    {
+        var session = await ChatService.CreateSessionAsync(_currentUserId);
+
+        ChatSessions.Insert(0, session);
+
+        return session;
     }
 }
