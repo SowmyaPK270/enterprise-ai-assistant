@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EnterpriseAiAssistant.Infrastructure.Persistence;
 
 /// <summary>
-/// EF Core context for the dedicated Conversation SQL database.
+/// EF Core context for the dedicated Conversation SQL database
 /// This database holds chat/user/session data
 /// (Users, Conversations, ChatMessages)
 /// </summary>
