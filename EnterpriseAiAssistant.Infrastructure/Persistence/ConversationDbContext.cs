@@ -7,12 +7,8 @@ namespace EnterpriseAiAssistant.Infrastructure.Persistence;
 
 /// <summary>
 /// EF Core context for the dedicated Conversation SQL database.
-///
 /// This database holds chat/user/session data
-/// (Users, Conversations, ChatMessages). It must remain a separate
-/// database/connection string from any RAG or knowledge store
-/// (Azure AI Search indexes, the SQL Server JOB database, Cosmos DB)
-/// introduced in later phases.
+/// (Users, Conversations, ChatMessages).
 /// </summary>
 public sealed class ConversationDbContext : DbContext
 {
