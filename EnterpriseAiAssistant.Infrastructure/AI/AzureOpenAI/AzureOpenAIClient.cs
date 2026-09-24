@@ -1,6 +1,4 @@
-﻿using Azure.Core;
-using Azure.Identity;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenAI.Chat;
@@ -30,16 +28,8 @@ public sealed class AzureOpenAIClient
         if (endpoint.EndsWith(openAiV1Suffix, StringComparison.OrdinalIgnoreCase))
             endpoint = endpoint[..^openAiV1Suffix.Length];
 
-        TokenCredential credential = environment.IsDevelopment()
-            ? new DefaultAzureCredential(new DefaultAzureCredentialOptions
-            {
-                TenantId = settings.TenantId,
-                ExcludeVisualStudioCredential = false,
-                ExcludeAzureCliCredential = false
-            })
-            : new ManagedIdentityCredential();
-
-        logger.LogInformation("Using Azure credential: {CredentialType}", credential.GetType().Name);
+        var credential = AzureCredentialFactory.Create(
+            environment, settings.TenantId, logger);
 
         var azureClient = new Azure.AI.OpenAI.AzureOpenAIClient(
             new Uri(endpoint),

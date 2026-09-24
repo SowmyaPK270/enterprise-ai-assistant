@@ -2,5 +2,7 @@
   <Project Path="EnterpriseAiAssistant.Application/EnterpriseAiAssistant.Application.csproj" />
   <Project Path="EnterpriseAiAssistant.Domain/EnterpriseAiAssistant.Domain.csproj" />
   <Project Path="EnterpriseAiAssistant.Infrastructure/EnterpriseAiAssistant.Infrastructure.csproj" />
+  <Project Path="EnterpriseAiAssistant.Ingestion/EnterpriseAiAssistant.Ingestion.csproj" Id="a7d9a217-58a8-4277-b0a9-045efa6456f0" />
+  <Project Path="EnterpriseAiAssistant.Plugins/EnterpriseAiAssistant.Plugins.csproj" Id="23224528-9c35-4ae6-9310-6701b66c7fcf" />
   <Project Path="EnterpriseAiAssistant/EnterpriseAiAssistant.Web.csproj" />
 </Solution>
