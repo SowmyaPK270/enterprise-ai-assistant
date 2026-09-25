@@ -1,5 +1,6 @@
 using Azure.AI.OpenAI;
 using EnterpriseAiAssistant.Infrastructure.AI.AzureOpenAI;
+using EnterpriseAiAssistant.Plugins.Filters;
 using EnterpriseAiAssistant.Plugins.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -25,6 +26,7 @@ public sealed class KernelFactory
     private readonly MsSqlSearchPlugin _msSqlSearchPlugin;
     private readonly CosmosGraphSearchPlugin _cosmosGraphSearchPlugin;
     private readonly AzureVectorSearchPlugin _azureVectorSearchPlugin;
+    private readonly ResultValidationFilter _resultValidationFilter;
 
     public KernelFactory(
         IOptions<AzureOpenAIOptions> options,
@@ -32,7 +34,8 @@ public sealed class KernelFactory
         IHostEnvironment environment,
         MsSqlSearchPlugin msSqlSearchPlugin,
         CosmosGraphSearchPlugin cosmosGraphSearchPlugin,
-        AzureVectorSearchPlugin azureVectorSearchPlugin)
+        AzureVectorSearchPlugin azureVectorSearchPlugin,
+        ResultValidationFilter resultValidationFilter)
     {
         _options = options.Value;
         _loggerFactory = loggerFactory;
@@ -40,7 +43,15 @@ public sealed class KernelFactory
         _msSqlSearchPlugin = msSqlSearchPlugin;
         _cosmosGraphSearchPlugin = cosmosGraphSearchPlugin;
         _azureVectorSearchPlugin = azureVectorSearchPlugin;
+        _resultValidationFilter = resultValidationFilter;
     }
+
+    /// <summary>
+    /// The deployment used for the main answering completion — exposed
+    /// so SemanticKernelAIClient can label cost-tracking entries with
+    /// the actual deployment/model that was billed.
+    /// </summary>
+    public string DeploymentName => _options.DeploymentName;
 
     public Kernel Build()
     {
@@ -59,15 +70,18 @@ public sealed class KernelFactory
         var credential = AzureCredentialFactory.Create(
             _environment, _options.TenantId, _loggerFactory.CreateLogger<KernelFactory>());
 
-        // Create Azure OpenAI client with managed identity credential
-        var azureOpenAiClient = new Azure.AI.OpenAI.AzureOpenAIClient(new Uri(endpoint), credential);
+        var azureOpenAiClient = new Azure.AI.OpenAI.AzureOpenAIClient(
+            new Uri(endpoint),
+            credential);
 
         var builder = Kernel.CreateBuilder();
 
         builder.Services.AddSingleton(_loggerFactory);
         builder.Services.AddSingleton(azureOpenAiClient);
 
-        builder.AddAzureOpenAIChatCompletion(_options.DeploymentName);
+        builder.AddAzureOpenAIChatCompletion(
+            deploymentName: _options.DeploymentName,
+            azureOpenAIClient: azureOpenAiClient);
 
         var kernel = builder.Build();
 
@@ -75,6 +89,7 @@ public sealed class KernelFactory
         kernel.Plugins.AddFromObject(_cosmosGraphSearchPlugin, "CosmosGraphSearch");
         kernel.Plugins.AddFromObject(_azureVectorSearchPlugin, "AzureVectorSearch");
 
+        kernel.FunctionInvocationFilters.Add(_resultValidationFilter);
         return kernel;
     }
 }

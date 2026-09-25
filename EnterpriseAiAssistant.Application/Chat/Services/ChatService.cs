@@ -2,8 +2,10 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using EnterpriseAiAssistant.Application.Abstractions.AI;
+using EnterpriseAiAssistant.Application.Abstractions.Cost;
 using EnterpriseAiAssistant.Application.Abstractions.Evaluation;
 using EnterpriseAiAssistant.Application.Abstractions.Guardrails;
+using EnterpriseAiAssistant.Application.Abstractions.Rag;
 using EnterpriseAiAssistant.Application.Chat.Interfaces;
 using EnterpriseAiAssistant.Application.Chat.Models;
 using EnterpriseAiAssistant.Domain.Chat;
@@ -22,17 +24,23 @@ public sealed class ChatService : IChatService
     private readonly IConversationRepository _repository;
     private readonly IGuardrailService _guardrails;
     private readonly IChatEvaluationService _evaluation;
+    private readonly ICitationAccumulator _citations;
+    private readonly ICostAccumulator _cost;
 
     public ChatService(
         IAIClient aiClient,
         IConversationRepository repository,
         IGuardrailService guardrails,
-        IChatEvaluationService evaluation)
+        IChatEvaluationService evaluation,
+        ICitationAccumulator citations,
+        ICostAccumulator cost)
     {
         _aiClient = aiClient;
         _repository = repository;
         _guardrails = guardrails;
         _evaluation = evaluation;
+        _citations = citations;
+        _cost = cost;
     }
 
     public Task<User> EnsureUserAsync(
@@ -97,6 +105,14 @@ public sealed class ChatService : IChatService
             throw new InvalidOperationException(
                 "This conversation does not belong to the requesting user.");
         }
+
+        // A DI scope in this Blazor Server app spans the whole browser
+        // circuit, not a single message, so these MUST be reset here at
+        // the start of every turn rather than relying on scope disposal
+        // to clear whatever the previous turn (or a previous session on
+        // the same circuit) recorded.
+        _citations.Reset();
+        _cost.Reset();
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -164,11 +180,14 @@ public sealed class ChatService : IChatService
 
         var aiRequest = new AIRequest(session.Messages.ToList());
 
-        // --- Buffer the FULL response server-side first. We cannot
+        // Buffer the FULL response server-side first. We cannot
         // safely release partial chunks to the client because a
         // guardrail match (e.g. an email address, a secret) can span
         // multiple chunks, and redaction after the fact can't "unsend"
-        // what the client already rendered. ---
+        // what the client already rendered. While this streams, the
+        // active IAIClient implementation (SemanticKernelAIClient) is
+        // populating _citations and _cost as it plans the query, calls
+        // retrieval tools, and completes the response. ---
         var buffer = new StringBuilder();
 
         await foreach (var chunk in _aiClient.StreamCompleteAsync(aiRequest, cancellationToken))
@@ -183,6 +202,8 @@ public sealed class ChatService : IChatService
         var wasOutputBlocked = false;
         string? outputBlockReason = null;
         var finalContent = rawContent;
+        IReadOnlyList<Citation> turnCitations = [];
+        ExecutionCostSummary? turnCostSummary = null;
 
         if (!string.IsNullOrWhiteSpace(rawContent))
         {
@@ -197,6 +218,21 @@ public sealed class ChatService : IChatService
                 wasOutputBlocked = true;
                 outputBlockReason = ex.Reason;
                 finalContent = ex.Reason;
+            }
+
+            // Traceability & cost: append which systems the answer is
+            // grounded in and what it cost
+            if (!wasOutputBlocked)
+            {
+                turnCitations = _citations.GetCitations();
+                turnCostSummary = _cost.GetSummary();
+
+                var footer = BuildTraceabilityFooter(turnCitations, turnCostSummary);
+
+                if (!string.IsNullOrEmpty(footer))
+                {
+                    finalContent += footer;
+                }
             }
 
             var assistantMessage = ChatMessage.Create(ChatRole.Assistant, finalContent);
@@ -217,7 +253,9 @@ public sealed class ChatService : IChatService
                 finalContent,
                 stopwatch.Elapsed,
                 WasBlockedByGuardrail: wasOutputBlocked,
-                GuardrailReason: outputBlockReason);
+                GuardrailReason: outputBlockReason,
+                CitedSources: turnCitations.Select(c => c.SourceSystem).Distinct().ToList(),
+                EstimatedCostUsd: turnCostSummary?.TotalEstimatedCostUsd);
 
             await _evaluation.RecordTurnAsync(turnContext, CancellationToken.None);
             await _evaluation.EvaluateTurnAsync(turnContext, CancellationToken.None);
@@ -237,5 +275,47 @@ public sealed class ChatService : IChatService
 
             await Task.Delay(15, cancellationToken); // small delay for a natural typing feel
         }
+    }
+
+    /// <summary>
+    /// Renders the Citation/Cost stage results into a short
+    /// footer appended to the assistant's message.
+    /// </summary>
+    private static string BuildTraceabilityFooter(
+        IReadOnlyList<Citation> citations,
+        ExecutionCostSummary? cost)
+    {
+        if (citations.Count == 0 && (cost is null || cost.Calls.Count == 0))
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        sb.Append("\n\n---");
+
+        if (citations.Count > 0)
+        {
+            sb.Append("\n**Sources:**");
+
+            foreach (var citation in citations)
+            {
+                sb.Append($"\n- {citation.SourceSystem}");
+
+                if (!string.IsNullOrWhiteSpace(citation.Query))
+                {
+                    sb.Append($" — \"{citation.Query}\"");
+                }
+            }
+        }
+
+        if (cost is not null && cost.Calls.Count > 0)
+        {
+            sb.Append(
+                $"\n\n*Estimated cost: ${cost.TotalEstimatedCostUsd:0.000000} " +
+                $"({cost.TotalInputTokens} input / {cost.TotalOutputTokens} output tokens " +
+                $"across {cost.Calls.Count} LLM call(s))*");
+        }
+
+        return sb.ToString();
     }
 }

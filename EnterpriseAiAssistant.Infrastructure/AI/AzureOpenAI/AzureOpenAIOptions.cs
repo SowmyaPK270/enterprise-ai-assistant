@@ -20,4 +20,17 @@ public sealed class AzureOpenAIOptions
     public string EmbeddingDeploymentName { get; set; } = string.Empty;
 
     public string TenantId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Switch for the Query Planner. When false,
+    /// SemanticKernelAIClient skips the planning call entirely
+    /// </summary>
+    public bool EnableQueryPlanning { get; set; } = true;
+
+    /// <summary>
+    /// Optional separate (typically smaller/cheaper) deployment used
+    /// only for the query-planning call. Falls back to
+    /// <see cref="DeploymentName"/> when not set.
+    /// </summary>
+    public string PlannerDeploymentName { get; set; } = string.Empty;
 }

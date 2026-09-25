@@ -57,11 +57,20 @@ public sealed class InitialSyncHostedService : BackgroundService
                 _queue.Enqueue(IngestionWorkItem.ForJob(job.JobNumber));
             }
 
+            var seedDocuments = DocumentSeeder.GetSeedDocuments();
+
+            foreach (var document in seedDocuments)
+            {
+                _queue.Enqueue(IngestionWorkItem.ForDocument(
+                    document.FileName, document.ContentType, document.Content));
+            }
+
             _logger.LogInformation(
-                "Initial sync enqueued {Count} job(s) for ingestion.", jobs.Count);
+                "Initial sync enqueued {JobCount} job(s) and {DocumentCount} seed document(s) for ingestion.",
+                jobs.Count, seedDocuments.Count);
         }
         catch (Exception ex)
-        {
+        {     
             _logger.LogError(ex, "Initial ingestion sync failed to complete.");
         }
     }

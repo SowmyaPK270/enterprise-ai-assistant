@@ -1,9 +1,11 @@
 ﻿using EnterpriseAiAssistant.Application.Abstractions.AI;
+using EnterpriseAiAssistant.Application.Abstractions.Cost;
 using EnterpriseAiAssistant.Application.Abstractions.Embeddings;
 using EnterpriseAiAssistant.Application.Abstractions.Rag;
 using EnterpriseAiAssistant.Application.Chat.Interfaces;
 using EnterpriseAiAssistant.Application.Ingestion;
 using EnterpriseAiAssistant.Infrastructure.AI.AzureOpenAI;
+using EnterpriseAiAssistant.Infrastructure.Cost;
 using EnterpriseAiAssistant.Infrastructure.Documents;
 using EnterpriseAiAssistant.Infrastructure.Graph;
 using EnterpriseAiAssistant.Infrastructure.Ingestion;
@@ -29,6 +31,7 @@ public static class DependencyInjection
         AddAzureAiSearch(services, configuration);
         AddCosmosGraphStore(services, configuration);
         AddDocumentExtraction(services);
+        AddCostTracking(services, configuration);
 
         services.AddSingleton<IIngestionStatusStore, InMemoryIngestionStatusStore>();
 
@@ -43,7 +46,7 @@ public static class DependencyInjection
         services.AddSingleton<AzureOpenAIClient>();
         services.AddSingleton<AzureOpenAIEmbeddingClient>();
 
-        // Default IAIClient: direct Azure OpenAI chat
+        // Default IAIClient: direct non-orchestrated Azure OpenAI chat
         // completion. The Plugins project registers
         // SemanticKernelAIClient afterwards, which — because the last
         // registration wins in Microsoft.Extensions.DependencyInjection —
@@ -121,5 +124,18 @@ public static class DependencyInjection
         services.AddSingleton<IDocumentTextExtractor, PlainTextDocumentExtractor>();
         services.AddSingleton<IDocumentTextExtractor, DocxDocumentExtractor>();
         services.AddSingleton<IDocumentTextExtractor, PdfDocumentExtractor>();
+    }
+
+    /// <summary>
+    /// Cost tracking: ITokenPricingProvider turns the raw token
+    /// counts SemanticKernelAIClient/LlmQueryPlanner record into an
+    /// estimated $ cost. 
+    /// </summary>
+    private static void AddCostTracking(IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<TokenPricingOptions>(
+            configuration.GetSection(TokenPricingOptions.SectionName));
+
+        services.AddSingleton<ITokenPricingProvider, TokenPricingProvider>();
     }
 }

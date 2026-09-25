@@ -1,4 +1,7 @@
 using EnterpriseAiAssistant.Application.Abstractions.AI;
+using EnterpriseAiAssistant.Application.Abstractions.Rag;
+using EnterpriseAiAssistant.Plugins.Filters;
+using EnterpriseAiAssistant.Plugins.Planning;
 using EnterpriseAiAssistant.Plugins.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +19,9 @@ public static class DependencyInjection
         services.AddScoped<MsSqlSearchPlugin>();
         services.AddScoped<CosmosGraphSearchPlugin>();
         services.AddScoped<AzureVectorSearchPlugin>();
+
+        services.AddScoped<IQueryPlanner, LlmQueryPlanner>();
+        services.AddScoped<ResultValidationFilter>();
 
         services.AddScoped<KernelFactory>();
 

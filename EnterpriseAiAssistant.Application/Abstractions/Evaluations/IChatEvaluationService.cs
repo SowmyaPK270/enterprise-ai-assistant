@@ -7,7 +7,9 @@ public sealed record ChatTurnEvaluationContext(
     string AssistantMessage,
     TimeSpan Latency,
     bool WasBlockedByGuardrail,
-    string? GuardrailReason);
+    string? GuardrailReason,
+    IReadOnlyList<string>? CitedSources = null,
+    decimal? EstimatedCostUsd = null);
 
 public sealed record ChatTurnEvaluationResult(
     bool IsRelevant,

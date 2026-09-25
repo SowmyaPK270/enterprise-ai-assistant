@@ -29,14 +29,17 @@ public sealed class ChatEvaluationService : IChatEvaluationService
         _logger.LogInformation(
             "ChatTurn Session={SessionId} User={UserId} " +
             "LatencyMs={LatencyMs} Blocked={Blocked} Reason={Reason} " +
-            "UserMsgLen={UserLen} AssistantMsgLen={AssistantLen}",
+            "UserMsgLen={UserLen} AssistantMsgLen={AssistantLen} " +
+            "Sources=[{Sources}] EstimatedCostUsd={EstimatedCostUsd}",
             context.SessionId,
             context.UserId,
             context.Latency.TotalMilliseconds,
             context.WasBlockedByGuardrail,
             context.GuardrailReason,
             context.UserMessage.Length,
-            context.AssistantMessage.Length);
+            context.AssistantMessage.Length,
+            context.CitedSources is null ? string.Empty : string.Join(", ", context.CitedSources),
+            context.EstimatedCostUsd);
 
         return Task.CompletedTask;
     }
