@@ -43,10 +43,10 @@ public sealed class AzureVectorSearchService : IAzureVectorSearchService
     }
 
     private async Task<string> SearchAsync(
-        string query,
-        string sourceType,
-        int topK,
-        CancellationToken cancellationToken)
+    string query,
+    string sourceType,
+    int topK,
+    CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -68,11 +68,16 @@ public sealed class AzureVectorSearchService : IAzureVectorSearchService
             VectorSearch = new VectorSearchOptions { Queries = { vectorQuery } },
             Filter = $"SourceType eq '{EscapeODataLiteral(sourceType)}'",
             Size = topK,
-            Select = { "Content", "JobNumber", "DocumentName" }
+            Select = { "Content", "JobNumber", "DocumentName" },
+            QueryType = SearchQueryType.Simple,
+            SearchFields = { "Content" }
         };
 
+        // Hybrid search: This catches exact terms
+        // (e.g. "Failure", "Flowback") that a pure vector search can
+        // sometimes under-rank.
         var response = await searchClient.SearchAsync<SearchDocument>(
-            searchText: null, options, cancellationToken);
+            searchText: query, options, cancellationToken);
 
         var sb = new StringBuilder();
         var hitCount = 0;
