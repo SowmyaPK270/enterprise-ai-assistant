@@ -152,8 +152,7 @@ EnterpriseAiAssistant.Web             Blazor Web App (Interactive Server) — th
 
 ## Getting started
 
-This is an **Enterprise** assistant in the literal sense — it expects real Azure resources, not a
-single-file local demo. To run it you'll need:
+To run it you'll need:
 
 1. **Azure OpenAI** (via Microsoft Foundry) with two model deployments: a chat model (e.g. `gpt-5.4`)
    and an embedding model (e.g. `text-embedding-3-small`).
@@ -188,16 +187,15 @@ dotnet restore
 dotnet run --project EnterpriseAiAssistant
 ```
 
-On first launch, a background hosted service seeds the JOB database with 10 sample jobs (see below),
-creates the Azure AI Search index and Cosmos DB container if they don't exist, and ingests all 10 jobs
+On first launch, a background hosted service seeds the JOB database with sample jobs,
+creates the Azure AI Search index and Cosmos DB container if they don't exist, and ingests all jobs
 end to end — no manual trigger needed. Sign in, and the data is queryable within a few seconds.
 
 ---
 
-## Sample data (seeded automatically)
+## Sample data
 
-`JobDbSeeder` deterministically seeds all 10 jobs below on first run — every job number referenced in
-the test questions further down exists exactly as shown here.
+Every job number referenced in the test questions further down exists exactly as shown here.
 
 | Job Number | Type | Status | Client | Well (Field) | Mobilized | Completed | Notes |
 |---|---|---|---|---|---|---|---|
