@@ -13,6 +13,9 @@ the agent are query planning, result validation, cost accounting, and source cit
 Guardrails for PII masking, secret blocking, jailbreak detection, and data privacy, along with a lightweight 
 evaluation and logging pipeline, are in place.
 
+Recruiters: No login is required to explore the live demo. Authentication is implemented in the application but disabled 
+in the live demo to provide direct, frictionless access.
+
 ---
 
 ## Why this exists

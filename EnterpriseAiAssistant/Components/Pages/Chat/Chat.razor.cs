@@ -24,6 +24,12 @@ public partial class Chat : ComponentBase
     [Inject]
     protected IJSRuntime JS { get; set; } = default!;
 
+    [Inject]
+    protected IConfiguration Configuration { get; set; } = default!;
+
+    [Inject]
+    protected NavigationManager Navigation { get; set; } = default!;
+
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
@@ -58,6 +64,10 @@ public partial class Chat : ComponentBase
     protected override async Task OnInitializedAsync()
     {
         _currentUserId = await ResolveCurrentUserIdAsync();
+        if (_currentUserId == Guid.Empty)
+        {
+            return;
+        }
 
         var sessions = await ChatService.GetSessionsAsync(_currentUserId);
 
@@ -109,6 +119,25 @@ public partial class Chat : ComponentBase
 
         var authState = await AuthenticationStateTask;
         var principal = authState.User;
+
+        var authEnabled = Configuration.GetValue<bool>("Authentication:Enabled", defaultValue: true);
+        if (principal.Identity?.IsAuthenticated != true)
+        {
+            if (!authEnabled)
+            {
+                var guestUser = await ChatService.EnsureUserAsync(
+                    $"guest-{Guid.NewGuid()}",
+                    "Guest");
+                return guestUser.Id;
+            }
+            else
+            {
+                Navigation.NavigateTo(
+                    "/MicrosoftIdentity/Account/SignIn?returnUrl=%2Fchat",
+                    forceLoad: true);
+                return Guid.Empty; 
+            }
+        }
 
         var externalId =
             principal.FindFirst("oid")?.Value ??
@@ -219,7 +248,7 @@ public partial class Chat : ComponentBase
     }
 
     protected async Task HandleKeyDown(
-        KeyboardEventArgs e)
+         KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !e.ShiftKey)
         {
