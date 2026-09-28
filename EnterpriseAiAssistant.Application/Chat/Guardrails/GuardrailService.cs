@@ -9,6 +9,9 @@ public sealed partial class GuardrailService : IGuardrailService
 {
     private readonly ILogger<GuardrailService> _logger;
 
+    private const string OutOfScopeMessage =
+        "Please ask only job-related questions.";
+
     // Very small "does this look like a jailbreak / prompt injection" list.
     // Not exhaustive — a starting point only.
     private static readonly string[] JailbreakPhrases =
@@ -29,6 +32,37 @@ public sealed partial class GuardrailService : IGuardrailService
         "make a bomb",
         "how to build a weapon",
         "kill myself",
+    ];
+
+    // Keywords used to keep the assistant focused on job/document/enterprise data.
+    private static readonly string[] InScopeKeywords =
+    [
+        "job",
+        "jobs",
+        "job number",
+        "document",
+        "documents",
+        "manual",
+        "manuals",
+        "enterprise",
+        "data",
+        "sql",
+        "graph",
+        "cosmos",
+        "vector",
+        "search",
+        "client",
+        "well",
+        "operation",
+        "operations",
+        "crew",
+        "incident",
+        "flowback",
+        "wireline",
+        "perforation",
+        "completion",
+        "workover",
+        "stimulation"
     ];
 
     public GuardrailService(ILogger<GuardrailService> logger)
@@ -83,6 +117,14 @@ public sealed partial class GuardrailService : IGuardrailService
             throw new GuardrailViolationException(
                 "For your security, please don't share passwords, API " +
                 "keys, or access tokens in this chat.");
+        }
+
+        if (!IsInScope(normalized))
+        {
+            _logger.LogInformation(
+                "Guardrail blocked input: out-of-scope question.");
+
+            throw new GuardrailViolationException(OutOfScopeMessage);
         }
 
         // PII is allowed through but masked before it's stored or sent
@@ -184,16 +226,28 @@ public sealed partial class GuardrailService : IGuardrailService
     {
         var digitsOnly = new string(match.Value.Where(char.IsDigit).ToArray());
 
-        if (digitsOnly.Length <= 4)
+        if (digitsOnly.Length < 4)
         {
-            return new string('*', match.Value.Length);
+            return "XXX-XXX-XXXX";
         }
 
         var last4 = digitsOnly[^4..];
-        var maskedPrefix = new string('*', digitsOnly.Length - 4);
 
-        return $"{maskedPrefix}{last4}";
+        return $"XXX-XXX-{last4}";
     }
+
+    private static bool IsInScope(string normalizedMessage)
+    {
+        if (JobNumberRegex().IsMatch(normalizedMessage))
+        {
+            return true;
+        }
+
+        return InScopeKeywords.Any(normalizedMessage.Contains);
+    }
+
+    [GeneratedRegex(@"\bjob-\d{4}-\d{4}\b", RegexOptions.IgnoreCase)]
+    private static partial Regex JobNumberRegex();
 
     [GeneratedRegex(
         @"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")]

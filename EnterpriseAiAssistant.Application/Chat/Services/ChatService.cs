@@ -282,8 +282,8 @@ public sealed class ChatService : IChatService
     /// footer appended to the assistant's message.
     /// </summary>
     private static string BuildTraceabilityFooter(
-        IReadOnlyList<Citation> citations,
-        ExecutionCostSummary? cost)
+    IReadOnlyList<Citation> citations,
+    ExecutionCostSummary? cost)
     {
         if (citations.Count == 0 && (cost is null || cost.Calls.Count == 0))
         {
@@ -297,7 +297,14 @@ public sealed class ChatService : IChatService
         {
             sb.Append("\nSources:");
 
-            foreach (var citation in citations)
+            foreach (var citation in citations
+                .Where(c => !string.IsNullOrWhiteSpace(c.SourceSystem))
+                .GroupBy(c => new
+                {
+                    c.SourceSystem,
+                    Query = c.Query?.Trim() ?? string.Empty
+                })
+                .Select(g => g.First()))
             {
                 sb.Append($"\n- {citation.SourceSystem}");
 
