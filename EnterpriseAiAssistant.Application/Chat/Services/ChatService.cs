@@ -295,7 +295,7 @@ public sealed class ChatService : IChatService
 
         if (citations.Count > 0)
         {
-            sb.Append("\n**Sources:**");
+            sb.Append("\nSources:");
 
             foreach (var citation in citations)
             {
@@ -311,9 +311,9 @@ public sealed class ChatService : IChatService
         if (cost is not null && cost.Calls.Count > 0)
         {
             sb.Append(
-                $"\n\n*Estimated cost: ${cost.TotalEstimatedCostUsd:0.000000} " +
+                $"\n\nEstimated cost: ${cost.TotalEstimatedCostUsd:0.000000} " +
                 $"({cost.TotalInputTokens} input / {cost.TotalOutputTokens} output tokens " +
-                $"across {cost.Calls.Count} LLM call(s))*");
+                $"across {cost.Calls.Count} LLM call(s))");
         }
 
         return sb.ToString();

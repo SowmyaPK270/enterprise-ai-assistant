@@ -65,9 +65,7 @@
                 <h1>Ask anything</h1>
 
                 <p>
-                    Your enterprise AI assistant.
-                    Ask questions, explore information, and get
-                    AI-powered answers.
+                    Search your company’s jobs, documents, and data with AI-powered answers.
                 </p>
 
             </section>
@@ -76,10 +74,12 @@
         {
             <!-- Messages -->
 
-            <section class="messages-container">
+            <section class="messages-container" @ref="_messagesContainerRef">
 
                 @foreach (var message in CurrentMessages)
                 {
+                    var (mainText, footerText) = SplitMessageContent(message.Content);
+
                     <div class="message-row
                         @(message.Role == ChatRole.User
                             ? "user-message"
@@ -94,8 +94,15 @@
                             </div>
 
                             <div class="message-content">
-                                @message.Content
+                                @mainText
                             </div>
+
+                            @if (!string.IsNullOrWhiteSpace(footerText))
+                            {
+                                <div class="message-footer">
+                                    @footerText
+                                </div>
+                            }
 
                         </div>
 
@@ -120,10 +127,19 @@
                             }
                             else
                             {
+                                var (streamingMain, streamingFooter) = SplitMessageContent(StreamingReply);
+
                                 <!-- Grows token-by-token as the response streams in -->
                                 <div class="message-content">
-                                    @StreamingReply
+                                    @streamingMain
                                 </div>
+
+                                @if (!string.IsNullOrWhiteSpace(streamingFooter))
+                                {
+                                    <div class="message-footer">
+                                        @streamingFooter
+                                    </div>
+                                }
                             }
 
                         </div>
@@ -142,7 +158,8 @@
             <div class="chat-input-container">
 
                 <textarea class="chat-input"
-                          placeholder="Ask anything about your enterprise data..."
+                          @ref="_inputElement"
+                          placeholder="Ask anything about jobs..."
                           @bind="UserInput"
                           @bind:event="oninput"
                           @onkeydown="HandleKeyDown"

@@ -3,8 +3,9 @@ using EnterpriseAiAssistant.Application.Chat.Models;
 using EnterpriseAiAssistant.Domain.Chat;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
+using System.Security.Claims;
 
 namespace EnterpriseAiAssistant.Web.Components.Pages.Chat;
 
@@ -12,11 +13,16 @@ public partial class Chat : ComponentBase
 {
     private const string DefaultTitle = "New conversation";
 
+    private const string FooterDelimiter = "\n\n---";
+
     [Inject]
     protected IChatService ChatService { get; set; } = default!;
 
     [Inject]
     protected ILogger<Chat> Logger { get; set; } = default!;
+
+    [Inject]
+    protected IJSRuntime JS { get; set; } = default!;
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
@@ -45,6 +51,10 @@ public partial class Chat : ComponentBase
     private Guid _currentUserId;
     private CancellationTokenSource? _sendCts;
 
+    private ElementReference _messagesContainerRef;
+    private ElementReference _inputElement;
+    private bool _shouldFocusInput;
+
     protected override async Task OnInitializedAsync()
     {
         _currentUserId = await ResolveCurrentUserIdAsync();
@@ -56,6 +66,35 @@ public partial class Chat : ComponentBase
         CurrentSession = ChatSessions.Count > 0
             ? ChatSessions[0]
             : await CreateAndTrackNewSessionAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (HasMessages)
+            {
+                await JS.InvokeVoidAsync(
+                    "chatUI.scrollToBottom",
+                    _messagesContainerRef);
+            }
+
+            if (_shouldFocusInput && !IsLoading)
+            {
+                _shouldFocusInput = false;
+
+                await JS.InvokeVoidAsync(
+                    "chatUI.focusInput",
+                    _inputElement);
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Chat UI JavaScript is unavailable.");
+        }
     }
 
     private async Task<Guid> ResolveCurrentUserIdAsync()
@@ -161,6 +200,7 @@ public partial class Chat : ComponentBase
             IsLoading = false;
             _sendCts.Dispose();
             _sendCts = null;
+            _shouldFocusInput = true;
         }
     }
 
@@ -168,12 +208,14 @@ public partial class Chat : ComponentBase
     {
         CurrentSession = await CreateAndTrackNewSessionAsync();
         UserInput = string.Empty;
+        _shouldFocusInput = true;
     }
 
     protected void SelectSession(ChatSession session)
     {
         CurrentSession = session;
         UserInput = string.Empty;
+        _shouldFocusInput = true;
     }
 
     protected async Task HandleKeyDown(
@@ -192,5 +234,14 @@ public partial class Chat : ComponentBase
         ChatSessions.Insert(0, session);
 
         return session;
+    }
+
+    private static (string Main, string? Footer) SplitMessageContent(string content)
+    {
+        var index = content.IndexOf(FooterDelimiter, StringComparison.Ordinal);
+
+        return index < 0
+            ? (content, null)
+            : (content[..index], content[(index + FooterDelimiter.Length)..].TrimStart('\n'));
     }
 }
