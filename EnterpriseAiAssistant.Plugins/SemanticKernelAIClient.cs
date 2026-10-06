@@ -32,6 +32,10 @@ public sealed class SemanticKernelAIClient : IAIClient
 {
     private const string ChatCompletionCallSite = "chat-completion";
 
+    private const string AnswerStylePrompt =
+    "Do not add a 'Sources', 'References' or 'Citations' section to your answers. " +
+    "The application automatically appends the sources and cost after your reply.";
+
     private readonly KernelFactory _kernelFactory;
     private readonly IQueryPlanner _queryPlanner;
     private readonly ICostAccumulator _costAccumulator;
@@ -120,6 +124,7 @@ public sealed class SemanticKernelAIClient : IAIClient
         CancellationToken cancellationToken)
     {
         var history = new ChatHistory();
+        history.AddSystemMessage(AnswerStylePrompt);
 
         foreach (var message in request.Messages)
         {
