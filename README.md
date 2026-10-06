@@ -8,7 +8,8 @@ uploaded PDF/DOCX manuals.
 A Semantic Kernel–orchestrated agent dynamically decides which of the four retrieval paths to use, and in what combination, 
 based on each question. Separately, a background ingestion pipeline runs independently of the chat application, keeping the 
 SQL source of truth, graph, and vector index synchronized without interfering with the live chat request path. Surrounding 
-the agent are query planning, result validation, cost accounting, and source citation.
+the agent are query planning, result validation, cost accounting, and source citation. The same retrieval tools can also be 
+exposed to external AI clients through a read-only, API-key-protected **MCP server** (`/mcp`).
 
 Guardrails for PII masking, secret blocking, jailbreak detection, and data privacy, along with a lightweight 
 evaluation and logging pipeline, are in place.
@@ -109,11 +110,9 @@ than being another lens on SQL.
 
 ## Do we use MCP (Model Context Protocol)?
 
-The three retrieval tools are wired in through **Semantic Kernel's native plugin system**:
-plain C# classes with `[KernelFunction]`-decorated methods, registered directly into the `Kernel`'s
-plugin collection (`kernel.Plugins.AddFromObject(...)`), invoked through the model provider's own
-function/tool-calling API (Azure OpenAI's, in this case). A natural extension of this project would be 
-exposing `MsSqlSearch`/`CosmosGraphSearch`/`AzureVectorSearch` as an MCP server.
+Yes. The three retrieval tools (SQL, Cosmos graph, vector search) are used by Semantic Kernel plugins inside 
+the app and are also exposed as a read-only **MCP server** at `/mcp` (Streamable HTTP, API-key protected), 
+so external MCP clients can call the same tools.
 
 ---
 
@@ -126,10 +125,12 @@ EnterpriseAiAssistant.Application     Interfaces + orchestration logic (ChatServ
 EnterpriseAiAssistant.Infrastructure  EF Core (SQL Server), Azure AI Search, Cosmos DB, Azure OpenAI clients,
                                        PDF/DOCX text extraction, token pricing
 EnterpriseAiAssistant.Plugins         Semantic Kernel: the Kernel factory, the 3 tool plugins, the Query
-                                       Planner, the Result Validator filter, SemanticKernelAIClient
+                                       Planner, the Result Validator filter, SemanticKernelAIClient;
+                                       plus the MCP tool classes (Mcp/) exposing the same 3 tools
 EnterpriseAiAssistant.Ingestion       Background queue + workers that sync SQL Server → Cosmos DB /
                                        Azure AI Search, and process uploaded documents
-EnterpriseAiAssistant.Web             Blazor Web App (Interactive Server) — the composition root (Program.cs)
+EnterpriseAiAssistant.Web             Blazor Web App (Interactive Server) — the composition root (Program.cs),
+                                       also hosts the /mcp endpoint and its API-key middleware
 ```
 
 ---
@@ -141,6 +142,7 @@ EnterpriseAiAssistant.Web             Blazor Web App (Interactive Server) — th
 | UI | Blazor Web App (.NET 8+), Interactive Server render mode |
 | Auth | Microsoft Entra ID (Microsoft.Identity.Web) |
 | LLM orchestration | Semantic Kernel, Azure OpenAI (chat + embeddings) |
+| Tool interoperability | Model Context Protocol (official C# SDK, Streamable HTTP) |
 | Structured data (source of truth) | Azure SQL Server, EF Core |
 | Relationship/graph data | Azure Cosmos DB for NoSQL, modeled as an adjacency list |
 | Semantic/vector search | Azure AI Search (hybrid vector index, shared by SQL-derived evidence and uploaded documents) |
@@ -252,9 +254,8 @@ system prompt"* (blocked outright — a real jailbreak signature the input guard
 
 ## Roadmap
 
-- Add a test project covering ResultValidator, GuardrailService, and TokenPricingProvider.
-- Expose the three retrieval tools as an MCP server, so any MCP-compatible client (not just this app's
-  own Semantic Kernel orchestrator) can use them.
+- Add a test project covering ResultValidator, GuardrailService, TokenPricingProvider, and the MCP endpoint.
+- Replace the shared MCP API key with Entra ID bearer-token validation for per-user access control.
 - Move the in-memory ingestion status store and citation/cost accumulators to a persisted store if this
   needs to survive process restarts or scale beyond a single instance.
 - Replace the heuristic in the Query Planner with a small classifier once
