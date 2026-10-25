@@ -130,6 +130,11 @@ else if (mcpOptions.Enabled)
         "Set Mcp__ApiKey in configuration to expose it.");
 }
 
+
+// Keep-alive endpoint called by a scheduled
+// GitHub Actions workflow to reduce cold starts.
+app.MapGet("/ping", () => Results.Ok("pong"));
+
 // Ingestion endpoints: Observe progress and
 // upload a document (e.g. a maintenance manual) for RAG without 
 // a dedicated admin UI yet.
