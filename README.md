@@ -17,6 +17,11 @@ evaluation and logging pipeline, are in place.
 Recruiters: No login is required to explore the live demo. Authentication is implemented in the application but disabled 
 in the live demo to provide direct, frictionless access.
 
+[Live Demo] https://enterprise-ai-assistant-abb3brashhc3agec.westus3-01.azurewebsites.net/chat
+
+Note on Live Demo: This application is hosted on a free cloud tier. If the environment has been idle, the initial page load may 
+experience a 30 to 50-second cold start delay. Thank you for your patience.
+
 ---
 
 ## Why this exists
@@ -259,3 +264,4 @@ system prompt"* (blocked outright — a real jailbreak signature the input guard
   there's real traffic data to tune it against.
 
 ---
+
